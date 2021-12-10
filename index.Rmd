@@ -46,60 +46,169 @@ class_diag <- function(score, truth, positive, cutoff=.5){
 
 # Mining, Classification, Prediction
 
-## Name and EID here
+## Nelly Akhmadikina NA24752
 
 ### Introduction 
 
-Paragraph or two introducing your datasets and variables, why they are interesting to you, etc. See instructions for more information
+I chose 3 data sets for my project. "pop1" is statistics on population of LGBT individuals in each US state including some territories. This dataset was take from the Movement Advancement Project (MAP) at https://www.lgbtmap.org/equality-maps/lgbt_populations. The variables I am using from this dataset are Total adult population (totaladpop), the LGBT Adult population(lgbtadpop), the LGBT population density (lgbtpopdensity), the Percent of Same-Sex individuals raising kids (percentindivkids), and the Percent of Same-Sex couples raising kids (percentcoupleskids). "policy1" is data on policies regarding the LGBT community. This data set includes the Sexual Orientation Policy tallies (SOpolicy) and Gender Identity Policy tallies (GIpolicy) that the Movement Advancement Project assigns to each states based on it helpful or harmful policies that are in place. The total of those two tallies is shown as Overall Tally (overallpolicy) . I will not be using any other variables from this dataset. This data is found on https://www.lgbtmap.org/equality-maps/.  My third dataset "marriage1" is found on https://www.pewforum.org/religious-landscape-study/compare/views-about-same-sex-marriage/by/state/. It is from the Pew Research Center. This was a 2014 survey on Views about same-sex marriage by state. This dataset includes the percent who Favor(favormarriage), Oppose (opposemarriage), and Don't Know (dkmarriage), as well as the sample size of the survey (marriagesample). I will not be using the sample size. I am interested in this data because I like studying statistics on the LGBT community. I wish to go into the public health sector to health the LGBT community. The dataset includes District of Columbia. I keep it in during most calculations, but I remove it when grouping by region. To create a classifier group I was curious which party each state voted for in the 2020 election, since it is a binary statistic. "statevotte" comes fromo https://www.archives.gov/electoral-college/2020.  If a state voted democrat it is classified with a 1. If a state voted republican, then it is a 0. If a state split their vote, I entered it as which party got more of the votes. 
 
 ```{R}
 library(tidyverse)
-# read your datasets in here, e.g., with read_csv()
+# read in csvs
+pop1 <-read_csv("LMS1.csv")
+marriage1 <-read_csv("LGBT MAP - Sheet3.csv")
+policy1 <-read_csv("LGBT MAP - Sheet2.csv")
+statevote <-read_csv("statevote.csv")
+# glimpse
+glimpse(policy1)
+glimpse(marriage1)
+glimpse(pop1)
+# tidying
+policy1 %>% na.omit -> policy
+marriage1 %>% pivot_longer(2:4) -> marrmess
+head(marrmess)
+marrmess %>% pivot_wider(names_from = name, values_from = value) -> marriage
+marriage %>% mutate(State = tolower(State)) -> marriage
+head(marriage)
+pop1 %>% rename("State"="STATE") %>% mutate(State = tolower(State)) -> pop
+policy %>% mutate(State = tolower(State)) -> policy 
+#joins
+full_join(pop, policy) -> poppolicy
+right_join(poppolicy, marriage) -> lgbt1
+# democrat is 1 and republican is 0 in 'statevote'
+full_join(lgbt1, statevote) -> lgbt2
+glimpse(lgbt2)
+#renaming columns to easier and shorter names to type, removing unwanted columns
+lgbt3 <- lgbt2 %>% rename("marriagesample"="Sample Size, same-sex marriage", "favormarriage"="Strongly favor/favor same-sex marriage", "opposemarriage" = "Oppose/strongly oppose same-sex marriage", "dkmarriage" = "Don't know, same-sex marriage", "totaladpop" = "TOTAL ADULT POPULATION", "lgbtadpop" = "LGBT ADULT POPULATION", "lgbtpopdensity"="LGBT POPULATION DENSITY", "percentindivkids"= "% OF LGBTQ INDIVIDUALS RAISING CHILDREN", "percentcoupleskids"= "% OF SAME-SEX COUPLES RAISING CHILDREN", "SOpolicy" = "SEXUAL ORIENTATION POLICY TALLY", "GIpolicy"= "GENDER IDENTITY POLICY TALLY", "overallpolicy"= "OVERALL TALLY")
+lgbt3 %>% select(1:6, 16:18, 20:21, 23) -> lgbt
+glimpse(lgbt) 
+#removing commas and percent signs in data
+lgbt$lgbtadpop <- as.numeric(gsub(",","",lgbt$lgbtadpop))
+lgbt$lgbtpopdensity <- as.numeric(gsub("%","",lgbt$lgbtpopdensity))
+lgbt$percentindivkids <- as.numeric(gsub("%","",lgbt$percentindivkids))
+lgbt$percentcoupleskids <- as.numeric(gsub("%","",lgbt$percentcoupleskids))
+lgbt$favormarriage <- as.numeric(gsub("%","",lgbt$favormarriage))
+lgbt$opposemarriage <- as.numeric(gsub("%","",lgbt$opposemarriage))
+glimpse(lgbt)
+lgbt %>% select(-1, -12) -> lgbttest
 
-# if your dataset needs tidying, do so here
-
-# any other code here
 ```
 
 ### Cluster Analysis
 
 ```{R}
 library(cluster)
-# clustering code here
+library(GGally)
+#sil
+sil_width<-vector()
+for(i in 2:10){  
+  pam_fit <- pam(lgbttest, k = i)  
+  sil_width[i] <- pam_fit$silinfo$avg.width  
+}
+ggplot()+geom_line(aes(x=1:10,y=sil_width))+scale_x_continuous(name="k",breaks=1:10)
+#
+pam1 <- lgbttest %>%scale %>% pam(k=2) #use the pam function
+pam1
+
+pam1$silinfo$avg.width
+ggpairs(lgbttest,aes(color=as.factor(pam1$clustering), alpha=.5))
+
 ```
 
-Discussion of clustering here
-    
+*The silhouette demonstrates that 2 clusters is the best fit for this data set. The medoid of the first cluster has a lower totaladpop, lgbtadpop, lgbtpopdensity, SOpolicy, GI policy, overallpolicy, and favormarriage. The two medoids had equal percent of lgbt individuals with kids. The medoid of the second cluster had the lower percent of lgbt couples with kids. The first cluster is probably the republican cluster, while the second is probably the democrat cluster.  The I find this interesting, since I would expect more adoptions to be restricted in states with low scores on the SOpolicy and GI policy. Though I think it might be due to the fact that these states might just have more of a value for having children. Looking at the plot there is a distinct difference between the states that votes republican and those that voted democrat within the SO policy, GI policy, and overall policy. Total adult population isn't as distinct due to the fact that there are some states like Texas that have a high population but are republican. The plot also demonstrated that the red cluster (republican) have a higher percentage of LGBT couples with kids. As the SI policy score goes up, so does the GI policy score. The average silhouette width is .3682. This can be interpreted as a weak structure. *
+
     
 ### Dimensionality Reduction with PCA
 
 ```{R}
-# PCA code here
+pca1 <- princomp(lgbttest, cor=T)
+summary(pca1, loadings=T)
+pca1$scores %>% as.data.frame() ->pca2
+pca2
+pca2 %>% ggplot(aes(Comp.1, Comp.2, color=as.factor(lgbt$Party20))) + geom_point()
 ```
 
-Discussions of PCA here. 
+*The plot demonstrates that a republican voting state (0) most likely has a negative comp.1, while the blue democratic states (1) are more likely to have a positive Comp.1. There isn't much distinction based on Comp.2. Most states are under 2 for Comp.2. A fr those that are above two its split between republican and democrat. Comp.1 and Comp.2 explain 0.7724752 oof the total variance in the dataset.  * 
 
 ###  Linear Classifier
 
 ```{R}
-# linear classifier code here
+set.seed(12)
+fit <- glm(Party20 ~ lgbtpopdensity + percentcoupleskids + percentindivkids + SOpolicy + GIpolicy+ favormarriage, data=lgbt, family="binomial")
+
+fit
+score <- predict(fit, type="response")
+score
+class_diag(score, truth=lgbt$Party20, positive='1')
+
+#confusion matrix
+y<-lgbt$Party20
+y <- factor(y, levels=c(1,0))
+x <- score
+#what is this x supposed to be?
+yhat <- ifelse(x>.61, 1, 0)
+yhat <- factor(yhat, levels=c(1,0))
+table(actual=y, predicted=yhat)
 ```
 
 ```{R}
 # cross-validation of linear classifier here
+set.seed(67)
+k=10 
+data<-lgbt[sample(nrow(lgbt)),] #randomly order rows
+folds<-cut(1:nrow(lgbt),breaks=k,labels=F)
+diags<-NULL
+
+for(i in 1:k){
+  train<-data[folds!=i,] 
+  test<-data[folds==i,]
+  truth<-test$Party20
+  fit<-glm(Party20 ~ lgbtpopdensity + percentcoupleskids + percentindivkids + SOpolicy + GIpolicy+ favormarriage,data=train,family="binomial")
+  probs<-predict(fit,newdata = test,type="response")
+  diags<-rbind(diags,class_diag(probs,truth, positive=1))
+}
+fit
+summarize_all(diags,mean)
+glimpse(lgbt)
 ```
 
-Discussion here
+*I used as logistic regression for my linear classifier. I am testing whether the variables lgbtpopdensity,  percentcoupleskids, percentindivkids, SOpolicy, GIpolicy, and favormarriage can be used to predict Party20, which is the political party that the states' electoral college voted for in 2020. 
 
 ### Non-Parametric Classifier
 
 ```{R}
 library(caret)
-# non-parametric classifier code here
+set.seed(1234)
+
+fit <- knn3(lgbt$Party20 ~lgbtpopdensity + percentcoupleskids + percentindivkids + SOpolicy + GIpolicy+ favormarriage , data=lgbt)
+probs <- predict(fit, newdata=lgbt)[,2] 
+class_diag(probs, lgbt$Party20, positive=1) 
+#confusion matrix
+table(truth = lgbt$Party20, predictions = probs>.5)
+
 ```
 
+
 ```{R}
-# cross-validation of np classifier here
+#cv of nonparametric
+set.seed(1234)
+k=10 
+data<-lgbt[sample(nrow(lgbt)),] #randomly order rows
+folds<-cut(1:nrow(lgbt),breaks=k,labels=F)
+diags<-NULL
+
+for(i in 1:k){
+  train<-data[folds!=i,] 
+  test<-data[folds==i,]
+  truth<-test$Party20
+  #fit
+  fit <- knn3(Party20 ~ lgbtpopdensity + percentcoupleskids + percentindivkids + SOpolicy + GIpolicy+ favormarriage , data=train)
+  
+  probs<-predict(fit,newdata = test)[,2]
+  diags<-rbind(diags,class_diag(probs,truth, positive=1))
+}
+summarize_all(diags,mean)
+
 ```
 
 Discussion
@@ -109,25 +218,61 @@ Discussion
 
 ```{R}
 # regression model code here
+library(rpart); library(rpart.plot)
+fit<- rpart(favormarriage ~lgbtpopdensity + percentcoupleskids + percentindivkids + SOpolicy + GIpolicy , data=lgbt)
+rpart.plot(fit)
+pred1 <- predict(fit)
+mean((lgbt$favormarriage-pred1)^2)
 ```
+
 
 ```{R}
 # cross-validation of regression model here
+set.seed(1234)
+k=10 
+data<-lgbt[sample(nrow(lgbt)),] #randomly order rows
+folds<-cut(1:nrow(lgbt),breaks=k,labels=F)
+MSE<-NULL
+
+for(i in 1:k){
+  train<-data[folds!=i,] 
+  test<-data[folds==i,]
+  truth<-test$favormarriage
+  #fit
+ fit<- rpart(favormarriage ~lgbtpopdensity + percentcoupleskids + percentindivkids + SOpolicy + GIpolicy , data=train)
+  pred<-predict(fit,newdata = test)
+  MSE<- cbind(MSE,mean((truth-pred)^2))
+}
+mean(MSE)
 ```
 
-Discussion
+* I used a classification tree for my regression/numeric prediction. I first created a tree for the full data set. The mean square error of the tree for the full data set was 26.85807. I then used the tree to train the prediction to 90% of the data, and then test that tree for the last 10%. I repeated this for all 10 folds. Tthe mean square error foor all 10 runs is 51.1926. Since the error is higher, there is overfitting. It means that the trees are worse at predicting on the new data. *
 
 ### Python 
 
 ```{R}
 library(reticulate)
+use_python("usr/bin/python3")
+
+hi <- "Happy"
+
 ```
 
 ```{python}
-# python code here
+
+hi = "Holidays"
+print(r.hi,hi)
+
 ```
 
-Discussion
+```{R}
+
+cat(c(hi, py$hi))
+
+
+```
+
+*I first assign Happy to "hi" in R, and then Holidays to "hi" in python. I then printed both "hi"s in in python using r. to grab the R code. I then printed that same in R, using py$ to grab the python code.*
 
 ### Concluding Remarks
 
